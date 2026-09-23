@@ -1,0 +1,1 @@
+print("BLINDSPOT server online")
