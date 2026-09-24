@@ -11,14 +11,17 @@ const project = JSON.parse(read('default.project.json'));
 assert.equal(project.tree.ServerScriptService.Server.$path, 'src/server');
 assert.equal(project.tree.StarterPlayer.StarterPlayerScripts.Client.$path, 'src/client');
 assert.equal(project.tree.ReplicatedStorage.Shared.$path, 'src/shared');
-const layout = [...read('src/server/Facility.luau').matchAll(/^\s*"([#.SABCEM]+)",/gm)].map(m => m[1]);
-assert.equal(layout.length, 13);
-assert(layout.every(row => row.length === 15));
+const layout = [...read('src/server/Facility.luau').matchAll(/^\s*"([#.SABCEMH]+)",/gm)].map(m => m[1]);
+assert.equal(layout.length, 19);
+assert(layout.every(row => row.length === 23));
+assert.equal(layout.join('').split('H').length - 1, 8);
+for(const symbol of 'SABCEM') assert.equal(layout.join('').split(symbol).length - 1, 1);
 let start;
 const targets = [];
 layout.forEach((row,z)=>[...row].forEach((c,x)=>{
   if(c==='S') start=[x,z];
-  if('ABCEM'.includes(c)) targets.push([x,z]);
+  if('ABCEMH'.includes(c)) targets.push([x,z]);
+  if(c==='H') assert.equal(layout[z-1][x], '#', 'Closets must have a north wall');
 }));
 const queue=[start], seen=new Set([start.join(',')]);
 for(let i=0;i<queue.length;i++) {
@@ -31,7 +34,7 @@ for(let i=0;i<queue.length;i++) {
 assert(targets.every(p=>seen.has(p.join(','))), 'All relays, exit and monster must be reachable');
 assert.equal(seen.size, layout.join('').replaceAll('#','').length, 'No isolated walkable regions');
 console.log(`PASS Rojo mappings; ${seen.size} connected walkable cells; all objectives/exit reachable`);
-const harness = read('tests/monster.spec.luau').replace('-- MONSTER_SOURCE', read('src/server/MonsterService.luau'));
+const harness = read('tests/monster.spec.luau').replace('-- MONSTER_SOURCE', read('src/server/MonsterService.luau')) + '\n' + read('tests/hiding.spec.luau').replace('-- HIDING_SOURCE', read('src/server/HidingService.luau'));
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'blindspot-test-'));
 try {
   const file=path.join(temp,'monster.luau'); fs.writeFileSync(file,harness);

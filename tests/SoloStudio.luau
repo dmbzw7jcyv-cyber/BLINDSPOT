@@ -68,6 +68,29 @@ local ok, err = pcall(function()
 	activate(terminal.ProximityPrompt)
 	assert(latest.completed == 0, "Remote-distance interaction denied")
 	print("BLINDSPOT TEST PASS: distant interaction denied")
+	local cabinet = workspace.Facility.Closet_1
+	local approach = cabinet.Door.Position + Vector3.new(0, 0.85, 3.35)
+	moveTo(approach)
+	activate(cabinet.Door.ProximityPrompt)
+	assert(latest.hiding and player.Character.HumanoidRootPart.Anchored, "Closet entry anchors Runner")
+	assert(not workspace.LocalFlashlight.SpotLight.Enabled, "Flashlight goes dark in closet")
+	remotes.LeaveCloset:FireServer()
+	task.wait(0.7)
+	assert(not latest.hiding and not player.Character.HumanoidRootPart.Anchored, "Exit restores movement")
+	activate(cabinet.Door.ProximityPrompt)
+	assert(latest.hiding)
+	command("Navigator")
+	assert(not latest.hiding and not player.Character.HumanoidRootPart.Anchored, "Role switch clears hiding")
+	command("Runner")
+	moveTo(approach)
+	activate(cabinet.Door.ProximityPrompt)
+	assert(latest.hiding)
+	command("Reset Round")
+	task.wait(4)
+	command("Pause Monster AI")
+	assert(not latest.hiding and not player.Character.HumanoidRootPart.Anchored, "Reset clears closet occupant")
+	assert(cabinet.Door.ProximityPrompt.Enabled)
+	print("BLINDSPOT TEST PASS: closet entry, flashlight, exit, role switch and reset cleanup")
 	for _, id in { "A", "B", "C" } do
 		local part = workspace.Facility["Terminal_" .. id]
 		moveTo(part.Position + Vector3.new(4, 0, 0))
@@ -83,7 +106,7 @@ local ok, err = pcall(function()
 	assert(latest.state == "Playing" and latest.completed == 0 and workspace.Facility.ExitDoor.CanCollide)
 	print("BLINDSPOT TEST PASS: round reset")
 	command("Pause Monster AI")
-	moveTo(Vector3.new(182, 3, 154)) -- fixed M cell
+	moveTo(Vector3.new(294, 3, 238)) -- fixed M cell in the expanded southeast wing
 	command("Spawn/Reset Monster") -- resume at the exact contact point
 	local untilTime = os.clock() + 6
 	while latest.state ~= "Lost" and os.clock() < untilTime do task.wait(0.1) end

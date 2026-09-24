@@ -20,6 +20,7 @@ local role, roundState, mapUpdate, radarUpdate, debugMap, debugPanel = nil, "Wai
 local monsterPart, monsterTarget, lamp, lampPart = nil, nil, nil, nil
 local monsterPieces = {}
 local flashlightOn = true
+local hiding = false
 
 local function clearMonster()
 	if monsterPart then monsterPart:Destroy(); monsterPart = nil end
@@ -79,9 +80,11 @@ remotes:WaitForChild("State").OnClientEvent:Connect(function(packet)
 	if role ~= packet.role then switchRole(packet.role) end
 	if debugMap and not packet.reveal then debugMap:Destroy(); debugMap, mapUpdate = nil, nil end
 	roundState = packet.state
+	hiding = packet.hiding == true and role == "Runner" and roundState == "Playing"
+	if workspace.CurrentCamera then workspace.CurrentCamera.CameraType = if hiding then Enum.CameraType.Scriptable else Enum.CameraType.Custom end
 	if roundState ~= "Playing" then clearMonster() end
 	header.Text = string.upper(packet.role) .. " / " .. string.upper(packet.state)
-	status.Text = packet.message .. "   [" .. packet.completed .. "/3]"
+	status.Text = if hiding then "Inside closet / E to leave" else packet.message .. "   [" .. packet.completed .. "/3]"
 	if packet.studio and RunService:IsStudio() then addDebug() end
 end)
 remotes:WaitForChild("Map").OnClientEvent:Connect(function(packet)
@@ -133,6 +136,7 @@ remotes:WaitForChild("Creature").OnClientEvent:Connect(function(position)
 end)
 UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then return end
+	if input.KeyCode == Enum.KeyCode.E and hiding then remotes.LeaveCloset:FireServer(); return end
 	if input.KeyCode == Enum.KeyCode.F then flashlightOn = not flashlightOn end
 	if input.KeyCode == Enum.KeyCode.F2 and debugPanel then
 		debugPanel.Visible = not debugPanel.Visible
@@ -142,6 +146,13 @@ end)
 player.CharacterAdded:Connect(function() clearLamp(); configureCamera() end)
 RunService.RenderStepped:Connect(function(dt)
 	local camera = workspace.CurrentCamera
+	if hiding and camera then
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if root then
+			local eye = root.Position + Vector3.new(0, 1.7, 0)
+			camera.CFrame = CFrame.lookAt(eye, eye + Vector3.new(0, 0, 1))
+		end
+	end
 	if role ~= "Runner" then UserInputService.MouseBehavior = Enum.MouseBehavior.Default end
 	if role == "Runner" and camera then
 		if not lampPart then
@@ -156,7 +167,7 @@ RunService.RenderStepped:Connect(function(dt)
 			lamp.Color = Color3.fromRGB(225, 214, 184)
 			lamp.Parent = lampPart
 		end
-		lampPart.CFrame, lamp.Enabled = camera.CFrame * CFrame.new(0, -0.2, -1), flashlightOn
+		lampPart.CFrame, lamp.Enabled = camera.CFrame * CFrame.new(0, -0.2, -1), flashlightOn and not hiding
 		if debugPanel and debugPanel.Visible then UserInputService.MouseBehavior = Enum.MouseBehavior.Default end
 	end
 	if monsterPart and monsterTarget and camera then

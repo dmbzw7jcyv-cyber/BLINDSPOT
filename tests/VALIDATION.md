@@ -1,5 +1,21 @@
 # V1 validation — 2026-09-23
 
+## Expanded map and closets follow-up
+
+The fixed map is now 23×19 cells, with 214 connected walkable cells and eight closets.
+Passed Rojo build, source mappings, official Luau compilation and CLI behavior tests.
+Added CLI assertions for closet occupancy, dead-character rejection, anchoring,
+exit/reset cleanup, hiding detection/damage suppression and exposed contact.
+
+Reran the full solo integration suite in Studio: packet separation, objective
+validation, closet entry, flashlight off, safe exit, role-switch cleanup, reset
+cleanup, all three relays, extraction, round reset and authoritative monster loss
+passed. Reran the real navmesh suite: chase/contact and routes to every relay and
+every closet entrance passed. Tests use scripted movement; multiplayer balance and
+human communication pacing on the larger map still need a playtest.
+
+## Original V1 checks
+
 Passed with Rojo 7.7.0 and the official Luau CLI:
 
 - Place build and source map; original server/client/shared mappings preserved.

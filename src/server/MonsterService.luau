@@ -19,10 +19,10 @@ function Monster:clearSight(target)
 	return workspace:Raycast(self.position, target - self.position, params) == nil
 end
 
-function Monster:step(dt, runnerPosition, now)
+function Monster:step(dt, runnerPosition, now, hidden)
 	if self.paused then return false end
 	local distance = (runnerPosition - self.position).Magnitude
-	local visible = distance < 62 and self:clearSight(runnerPosition)
+	local visible = not hidden and distance < 62 and self:clearSight(runnerPosition)
 	if visible then
 		self.state, self.lastSeen, self.target = "Chase", now, runnerPosition
 	elseif self.state == "Chase" then
@@ -64,7 +64,7 @@ function Monster:step(dt, runnerPosition, now)
 		end
 		if delta.Magnitude < 1 then self.index += 1 end
 	end
-	return (runnerPosition - self.position).Magnitude < 4 and self:clearSight(runnerPosition)
+	return not hidden and (runnerPosition - self.position).Magnitude < 4 and self:clearSight(runnerPosition)
 end
 
 return Monster

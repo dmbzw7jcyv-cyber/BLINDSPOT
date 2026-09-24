@@ -1,19 +1,25 @@
 local Facility = {}
 -- Server-only fixed layout. # = wall; all other cells are walkable.
 Facility.Rows = {
-	"###############",
-	"#S....#......E#",
-	"#.###.#.#####.#",
-	"#...#...#.....#",
-	"###.#####.###.#",
-	"#...#A....#...#",
-	"#.###.#####.#.#",
-	"#.....#B....#.#",
-	"#.#####.#####.#",
-	"#...#.....#...#",
-	"###.#.###.#.#.#",
-	"#C....#.....#M#",
-	"###############",
+	"#######################",
+	"#S.H..#......E........#",
+	"#.###.#.#####..#####.##",
+	"#...#...#.......H..#..#",
+	"###.#####.###.####.#.##",
+	"#...#A.H..#......#.#..#",
+	"#.###.#####.#..#.#.####",
+	"#.H...#.....#..#...B..#",
+	"#.#####.#####..#####.##",
+	"#...#.....#......H.#..#",
+	"###.#.###.#.#.####.#.##",
+	"#.....#.....#.........#",
+	"###.#####.###.###.###.#",
+	"#....H................#",
+	"#.#####.#####.#####.#.#",
+	"#.....#.....#.H...#...#",
+	"###.#.###.#.###.#.###.#",
+	"#.H.#.....#C....#....M#",
+	"#######################",
 }
 Facility.Cell = 14
 Facility.Control = Vector3.new(-90, 4, 20)
@@ -36,7 +42,7 @@ function Facility.build()
 	local model = Instance.new("Model")
 	model.Name = "Facility"
 	model.Parent = workspace
-	Facility.Model, Facility.Objectives, Facility.Patrol = model, {}, {}
+	Facility.Model, Facility.Objectives, Facility.Patrol, Facility.Closets = model, {}, {}, {}
 	local width, depth = #Facility.Rows[1] * 14, #Facility.Rows * 14
 	local center = Vector3.new((width - 14) / 2, -1, (depth - 14) / 2)
 	local floor = part(model, "Floor", Vector3.new(width, 2, depth), center, Color3.fromRGB(39, 38, 35))
@@ -56,6 +62,27 @@ function Facility.build()
 				table.insert(Facility.Patrol, position)
 				if symbol == "S" then Facility.Start = position end
 				if symbol == "M" then Facility.MonsterStart = position end
+				if symbol == "H" then
+					-- Cabinets sit against a north wall, leaving the corridor center clear.
+					local cabinet = Instance.new("Model")
+					cabinet.Name = "Closet_" .. (#Facility.Closets + 1)
+					cabinet.Parent = model
+					local center = position + Vector3.new(0, 1, -4.5)
+					local metal = Color3.fromRGB(54, 52, 43)
+					part(cabinet, "Back", Vector3.new(5.5, 8, 0.3), center + Vector3.new(0, 0, -2), metal)
+					for _, side in { -1, 1 } do
+						part(cabinet, "Side", Vector3.new(0.3, 8, 4.3), center + Vector3.new(side * 2.6, 0, 0), metal)
+					end
+					part(cabinet, "Roof", Vector3.new(5.5, 0.3, 4.3), center + Vector3.new(0, 4, 0), metal)
+					local door = part(cabinet, "Door", Vector3.new(5.5, 4.3, 0.3), position + Vector3.new(0, -0.85, -2.35), metal)
+					part(cabinet, "UpperDoor", Vector3.new(5.5, 2.2, 0.3), position + Vector3.new(0, 3.9, -2.35), metal)
+					part(cabinet, "Handle", Vector3.new(0.15, 0.8, 0.25), position + Vector3.new(1.8, 0.2, -2.1), Color3.fromRGB(113, 100, 78))
+					local prompt = Instance.new("ProximityPrompt")
+					prompt.ActionText, prompt.ObjectText = "Hide", "Maintenance closet"
+					prompt.HoldDuration, prompt.MaxActivationDistance = 0.35, 7
+					prompt.Parent = door
+					table.insert(Facility.Closets, { model = cabinet, door = door, prompt = prompt, inside = position + Vector3.new(0, 0, -4.5), outside = position + Vector3.new(0, 0, 1), x = x, z = z })
+				end
 				if symbol:match("[ABC]") then
 					local terminal = part(model, "Terminal_" .. symbol, Vector3.new(3, 4, 2), position, Color3.fromRGB(170, 112, 35))
 					local prompt = Instance.new("ProximityPrompt")

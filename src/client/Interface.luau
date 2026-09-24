@@ -41,19 +41,20 @@ function UI.map(parent)
 	local canvas = UI.frame(panel, UDim2.fromScale(0.5, 0.49), UDim2.fromScale(0.94, 0.74))
 	canvas.AnchorPoint = Vector2.new(0.5, 0.5)
 	local aspect = Instance.new("UIAspectRatioConstraint")
-	aspect.AspectRatio = 15 / 13
+	aspect.AspectRatio = 1
 	aspect.Parent = canvas
-	UI.label(panel, "N ↑   • YOU GUIDE THE RUNNER\nAmber: relay  /  Green: online  /  E: exit", UDim2.fromScale(0.03, 0.88), UDim2.fromScale(0.94, 0.1), 14)
+	UI.label(panel, "N ↑   • YOU GUIDE THE RUNNER\nAmber: relay / Green: online / E: exit / H: closet", UDim2.fromScale(0.03, 0.88), UDim2.fromScale(0.94, 0.1), 12)
 	local marker, cells, built = nil, {}, false
 	return panel, function(packet)
 		local rows, width, height = packet.rows, #packet.rows[1], #packet.rows
+		aspect.AspectRatio = width / height
 		if not built then
 			built = true
 			for z, row in rows do
 				for x = 1, #row do
 					local symbol = row:sub(x, x)
 					local cell = UI.frame(canvas, UDim2.fromScale((x - 1) / width, (z - 1) / height), UDim2.new(1 / width, -1, 1 / height, -1), if symbol == "#" then Color3.fromRGB(57, 59, 56) else Color3.fromRGB(22, 24, 23))
-					if symbol:match("[ABCE]") then
+					if symbol:match("[ABCEH]") then
 						cells[symbol] = UI.label(cell, symbol, UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), 14)
 					end
 				end

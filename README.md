@@ -5,6 +5,23 @@ One fixed industrial maze, three power relays, one hostile, one exit. Nobody has
 information alone: use normal Roblox chat or your existing voice call to coordinate.
 There is no custom voice system, progression, shop, persistence, or procedural generation.
 
+The fixed facility is now **23 × 19 cells** (322 × 266 studs), with **214 connected
+walkable cells** and eight maintenance closets. Relays B and C sit in the expanded
+east and south wings. The Navigator's map scales to the layout and marks closets **H**.
+
+### Hiding closets
+
+Approach a maintenance closet and hold **E** to hide. The server moves the Runner
+inside, locks movement, and the flashlight goes dark. Look out through the door slot;
+press **E** to leave. The small corner HUD indicates when you are inside.
+
+Break line of sight before entering: if the monster sees you enter within its detection
+range, it approaches the doorway and can catch you. Otherwise it searches its last known
+position, then returns to patrol. Hiding does not freeze the monster or its Tracker scans.
+Only the Runner can enter, and the server validates role, round state, health, distance,
+line of sight and occupancy. Death, reset, disconnection and debug role changes release
+the closet and restore movement. Debug teleportation also clears hiding.
+
 | Role | What you know | What you do not get |
 | --- | --- | --- |
 | Runner | First-person world, flashlight, nearby physical hostile, relay prompts | Map, radar, distance/bearing indicators |
@@ -100,6 +117,7 @@ src/shared/Config.luau          ReplicatedStorage.Shared: public tuning/audio ho
 src/server/init.server.luau     ServerScriptService.Server: rounds, roles, validation, dispatch
 src/server/Facility.luau        Fixed layout, physical facility, relays and exit
 src/server/MonsterService.luau  Server-only logical AI and rate-limited pathfinding
+src/server/HidingService.luau   Closet occupancy, anchoring and cleanup
 src/client/init.client.luau     Camera, flashlight, local hostile, role/debug lifecycle
 src/client/Interface.luau       Map, sonar, restrained HUD components
 tests/                         Not mapped into the Roblox place
@@ -133,16 +151,17 @@ node tests/check.mjs
 
 The Node check requires Node 22+ and the official [Luau CLI](https://github.com/luau-lang/luau/releases).
 Set `LUAU` to the executable path if it is not on PATH. It checks Rojo mappings,
-all 86 walkable cells' connectivity, relay/exit reachability, and executes the actual
+all 214 walkable cells' connectivity, relay/exit/closet reachability, and executes the actual
 MonsterService against a small mock to test transitions, kills, occlusion, pause,
-reset, path failure, and pathfinding rate limits. Mocks do not validate Roblox physics.
+reset, path failure, hiding detection/damage, closet lifecycle, and pathfinding rate
+limits. Mocks do not validate Roblox physics.
 
 Engine integration scripts, intentionally excluded from the Rojo tree:
 
 - `tests/SoloStudio.luau`: during solo Play, paste into the **Client Command Bar**
   and execute with **Ctrl+Enter**. It resets the round, switches roles, inspects
   actual remote packets, tests prompt rejection/activation, unlock/extraction,
-  reset, and monster death. It teleports the test avatar and pauses AI to isolate
+  reset, closet entry/exit/cleanup, and monster death. It teleports the test avatar and pauses AI to isolate
   checks; this is not a balance/playability test.
 - `tests/MonsterStudio.luau`: run in the **Server Command Bar** during Play to test
   an isolated AI against the real navmesh and routes to all relays.

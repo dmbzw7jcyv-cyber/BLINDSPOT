@@ -5,6 +5,7 @@ local Lighting = game:GetService("Lighting")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Facility = require(script.Facility).build()
 local Monster = require(script.MonsterService).new(Facility)
+local Hiding = require(script.HidingService).new()
 local studio = RunService:IsStudio()
 Players.CharacterAutoLoads = false
 Lighting.ClockTime, Lighting.Brightness = 0, 0.5
@@ -21,6 +22,7 @@ local function remote(name)
 end
 local stateEvent, mapEvent, scanEvent, creatureEvent = remote("State"), remote("Map"), remote("Scan"), remote("Creature")
 local readyEvent = remote("Ready")
+local leaveClosetEvent = remote("LeaveCloset")
 -- The debug remote does not even exist outside Studio. Every request is also gated below.
 local debugEvent = if studio then remote("Debug") else nil
 local roles, ready, lastRequest, reveal = {}, {}, {}, {}
@@ -51,7 +53,7 @@ local function completed()
 end
 local function sendState(player)
 	if not ready[player] then return end
-	stateEvent:FireClient(player, { state = state, message = message, role = roles[player] or "Observer", completed = completed(), studio = studio, paused = Monster.paused, reveal = studio and reveal[player] == true })
+	stateEvent:FireClient(player, { state = state, message = message, role = roles[player] or "Observer", completed = completed(), studio = studio, paused = Monster.paused, reveal = studio and reveal[player] == true, hiding = Hiding:get(player) ~= nil })
 end
 local function broadcast()
 	for _, player in Players:GetPlayers() do sendState(player) end
@@ -61,6 +63,7 @@ local function transition(nextState, text)
 	broadcast()
 end
 local function teleport(player, position)
+	if Hiding:leave(player, false) then sendState(player) end
 	local r = root(player)
 	if r then
 		r.AssemblyLinearVelocity, r.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
@@ -73,6 +76,8 @@ local function place(player)
 	teleport(player, if roles[player] == "Runner" then savedRunnerPosition else Facility.Control + Vector3.new(0, 0, 4))
 end
 local function setRole(player, role)
+	local entry = Hiding:get(player)
+	if entry then savedRunnerPosition = entry.closet.outside; Hiding:leave(player, true) end
 	roles[player], reveal[player] = role, nil
 	-- A single atomic state packet makes the client tear down its previous role UI/data.
 	sendState(player)
@@ -81,6 +86,7 @@ end
 
 finish = function(won, reason)
 	if state ~= "Playing" then return end
+	Hiding:reset()
 	deadline = os.clock() + Config.ResultDuration
 	transition(if won then "Won" else "Lost", reason)
 end
@@ -89,6 +95,7 @@ beginRound = function()
 	if state == "Setup" then return end
 	setupGeneration += 1
 	local generation = setupGeneration
+	Hiding:reset()
 	transition("Setup", "Establishing operator links…")
 	Facility.reset()
 	Monster:reset()
@@ -118,7 +125,7 @@ end
 
 local function canInteract(player, position)
 	local r, h = root(player), humanoid(player)
-	if state ~= "Playing" or roles[player] ~= "Runner" or not r or not h or h.Health <= 0 then return false end
+	if state ~= "Playing" or roles[player] ~= "Runner" or Hiding:get(player) or not r or not h or h.Health <= 0 then return false end
 	if (r.Position - position).Magnitude > 9 then return false end
 	local params = RaycastParams.new()
 	params.FilterType, params.FilterDescendantsInstances = Enum.RaycastFilterType.Include, { Facility.Model }
@@ -143,6 +150,17 @@ Facility.ExitPrompt.Triggered:Connect(function(player)
 	if completed() == 3 and canInteract(player, Facility.Door.Position) then finish(true, "TEAM EXTRACTED • signal secured") end
 end)
 
+for _, closet in Facility.Closets do
+	closet.prompt.Triggered:Connect(function(player)
+		if not canInteract(player, closet.door.Position) then return end
+		local r = root(player)
+		if (r.Position - closet.door.Position).Magnitude > 7 then return end
+		-- Being seen entering is not an escape: the hostile checks the doorway.
+		local exposed = (r.Position - Monster.position).Magnitude < 62 and Monster:clearSight(r.Position)
+		if Hiding:enter(player, closet, exposed) then sendState(player) end
+	end)
+end
+
 local function throttle(player, interval)
 	local now = os.clock()
 	if now - (lastRequest[player] or -100) < interval then return false end
@@ -153,6 +171,11 @@ readyEvent.OnServerEvent:Connect(function(player)
 	if not throttle(player, 0.5) then return end
 	ready[player] = true
 	sendState(player)
+end)
+leaveClosetEvent.OnServerEvent:Connect(function(player)
+	if not throttle(player, 0.25) then return end
+	-- No client-provided target or position; can only exit your own server entry.
+	if Hiding:leave(player, true) then sendState(player) end
 end)
 if debugEvent then
 	debugEvent.OnServerEvent:Connect(function(player, action)
@@ -166,7 +189,7 @@ if debugEvent then
 		elseif action == "Teleport to Runner area" then teleport(player, savedRunnerPosition)
 		elseif action == "Teleport to Control Room" then teleport(player, Facility.Control)
 		elseif table.find(Config.Roles, action) and #Players:GetPlayers() == 1 and state == "Playing" then
-			if roles[player] == "Runner" and root(player) then savedRunnerPosition = root(player).Position end
+			if roles[player] == "Runner" and root(player) and not Hiding:get(player) then savedRunnerPosition = root(player).Position end
 			-- The solo Runner's last position remains the simulated target during station inspection.
 			setRole(player, action)
 		end
@@ -182,6 +205,7 @@ local function joined(player)
 		if not h then return end
 		place(player)
 		h.Died:Connect(function()
+			Hiding:leave(player, false)
 			if roles[player] == "Runner" then finish(false, "RUNNER LOST • connection terminated") end
 		end)
 	end)
@@ -191,6 +215,7 @@ local function joined(player)
 end
 Players.PlayerAdded:Connect(joined)
 Players.PlayerRemoving:Connect(function(player)
+	Hiding:leave(player, false)
 	local active = roles[player] and roles[player] ~= "Observer"
 	roles[player], ready[player], lastRequest[player], reveal[player] = nil, nil, nil, nil
 	if active then finish(false, "Operator disconnected • round aborted") end
@@ -218,13 +243,20 @@ task.spawn(function()
 		if state == "Playing" and position then
 			-- Freeze the simulated target while solo developer inspects a station.
 			if runner and roles[runner] == "Runner" then
-				savedRunnerPosition = position
-				if Monster:step(Config.Tick, position, now) then
+				local entry = Hiding:get(runner)
+				savedRunnerPosition = if entry then entry.closet.outside else position
+				if entry and (not entry.root.Parent or not entry.root.Anchored or (entry.root.Position - entry.closet.inside).Magnitude > 1.5) then
+					Hiding:leave(runner, true)
+					sendState(runner)
+					entry = nil
+				end
+				local target = if entry and entry.exposed then entry.closet.outside else position
+				if Monster:step(Config.Tick, target, now, entry ~= nil and not entry.exposed) then
 					local h = humanoid(runner)
 					if h then h.Health = 0 end
 					finish(false, "RUNNER LOST • hostile contact")
 				end
-				if completed() == 3 and (position - Facility.Exit).Magnitude < 5 then finish(true, "TEAM EXTRACTED • signal secured") end
+				if not entry and completed() == 3 and (position - Facility.Exit).Magnitude < 5 then finish(true, "TEAM EXTRACTED • signal secured") end
 			end
 		end
 		for _, player in list do
